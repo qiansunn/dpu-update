@@ -1,6 +1,8 @@
-## Name
+## Dpu update Script
 
- OobUpdate.sh - BlueField DPU Update Script (out-of-band)
+This repository is created only for reference code and example.
+
+  OobUpdate.sh - BlueField DPU Update Script (out-of-band)
 
 ## Description
 
