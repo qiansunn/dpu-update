@@ -54,6 +54,8 @@ class Err_Num(Enum):
     BIOS_FACTORY_RESET_FAIL               = 25
     TASK_TIMEOUT                          = 26
     PUSH_URI_NOT_FOUND                    = 27
+    HTTP_FILE_SERVER_NOT_ACCESSIBLE       = 28
+    INVALID_BMC_ADDRESS                   = 29
     OTHER_EXCEPTION                       = 127
 
 
@@ -85,6 +87,8 @@ Err_Str = {
    Err_Num.BIOS_FACTORY_RESET_FAIL        : 'Failed to do BIOS factory reset',
    Err_Num.TASK_TIMEOUT                   : 'Task timeout',
    Err_Num.PUSH_URI_NOT_FOUND             : 'Push URI not found',
+   Err_Num.HTTP_FILE_SERVER_NOT_ACCESSIBLE : 'HTTP file server is not accessible from BMC',
+   Err_Num.INVALID_BMC_ADDRESS            : 'Invalid BMC Address',
    Err_Num.OTHER_EXCEPTION                : 'Other Errors',
 }
 
@@ -116,7 +120,7 @@ class BF_DPU_Update(object):
 
 
     def __init__(self, bmc_ip, bmc_port, username, password, fw_file_path, module, skip_same_version, debug=False, log_file=None):
-        self.bmc_ip            = bmc_ip
+        self.bmc_ip            = self._parse_bmc_addr(bmc_ip)
         self.bmc_port          = bmc_port
         self.username          = username
         self.password          = password
@@ -133,7 +137,7 @@ class BF_DPU_Update(object):
 
     def _get_prot_ip_port(self):
         port = '' if self.bmc_port is None else ':{}'.format(self.bmc_port)
-        return self.protocol + self.bmc_ip + port
+        return self.protocol + self._format_ip(self.bmc_ip) + port
 
 
     def _get_url_base(self):
@@ -141,7 +145,10 @@ class BF_DPU_Update(object):
 
 
     def _get_local_ip(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if self._is_ipv4:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        else:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
         s.connect((self.bmc_ip, 0))
         return s.getsockname()[0]
 
@@ -155,6 +162,76 @@ class BF_DPU_Update(object):
             return data[0:1024] + '... ... [Truncated]'
         else:
             return data
+
+
+    def _parse_bmc_addr(self, address):
+        self.raw_bmc_addr = address
+
+        # IPV4?
+        if self._is_valid_ipv4(address):
+            self._is_ipv4 = True
+            return address
+
+        # IPV6?
+        if self._is_valid_ipv6(address):
+            self._is_ipv4 = False
+            return address
+
+        # Host name(ipv4) ?
+        ipv4 = self._get_ipv4_from_name(address)
+        if ipv4 is not None:
+            self._is_ipv4 = True
+            return ipv4
+
+        # Host name(ipv6) ?
+        ipv6 = self._get_ipv6_from_name(address)
+        if ipv6 is not None:
+            self._is_ipv4 = False
+            return ipv6
+        raise Err_Exception(Err_Num.INVALID_BMC_ADDRESS, '{} is neither a valid IPV4/IPV6 nor a resolvable host name'.format(address))
+
+
+    @staticmethod
+    def _is_valid_ipv4(address):
+        try:
+            socket.inet_pton(socket.AF_INET, address)
+            return True
+        except:
+            return False
+
+
+    @staticmethod
+    def _is_valid_ipv6(address):
+        try:
+            socket.inet_pton(socket.AF_INET6, address)
+            return True
+        except:
+            return False
+
+
+    @staticmethod
+    def _get_ipv4_from_name(address):
+        try:
+            ipv4_list = socket.getaddrinfo(address, None, socket.AF_INET)
+            return ipv4_list[0][4][0]
+        except:
+            return None
+
+
+    @staticmethod
+    def _get_ipv6_from_name(address):
+        try:
+            ipv6_list = socket.getaddrinfo(address, None, socket.AF_INET6)
+            return ipv6_list[0][4][0]
+        except:
+            return None
+
+
+    def _format_ip(self, ip):
+        if self._is_ipv4:
+            return ip
+        else:
+            return '[{}]'.format(ip)
 
 
     def log(self, msg, resp):
@@ -372,7 +449,7 @@ class BF_DPU_Update(object):
     def update_bfb_by_scp(self):
         self.confirm_ssh_key_with_bmc()
         print("Start to upload BFB firmware (SCP)")
-        return self.update_bfb_impl('SCP', self._get_local_ip() + '/' + os.path.abspath(self.fw_file_path))
+        return self.update_bfb_impl('SCP', self._format_ip(self._get_local_ip()) + '/' + os.path.abspath(self.fw_file_path))
 
 
     def http_server(self):
@@ -385,7 +462,14 @@ class BF_DPU_Update(object):
 
         abs_dir = os.path.dirname(os.path.abspath(self.fw_file_path))
         os.chdir(abs_dir)
-        httpd = HTTPServer((self._get_local_ip(), 0), _SimpleHTTPRequestHandler)
+        if self._is_ipv4:
+            _HTTPServer = HTTPServer
+        else:
+            class HTTPServerV6(HTTPServer):
+                address_family = socket.AF_INET6
+            _HTTPServer = HTTPServerV6
+
+        httpd = _HTTPServer((self._get_local_ip(), 0), _SimpleHTTPRequestHandler)
         self._local_http_server_port = httpd.server_address[1]
         httpd.serve_forever()
 
@@ -402,7 +486,7 @@ class BF_DPU_Update(object):
     def update_bfb_by_http(self):
         self.create_http_server_thread()
         print("Start to upload BFB firmware (HTTP)")
-        return self.update_bfb_impl('HTTP', self._get_local_ip() + ':' + str(self._local_http_server_port) + '//' + os.path.basename(self.fw_file_path))
+        return self.update_bfb_impl('HTTP', self._format_ip(self._get_local_ip()) + ':' + str(self._local_http_server_port) + '//' + os.path.basename(self.fw_file_path))
 
 
     def update_bmc_fw_multipart(self, url):
@@ -587,7 +671,7 @@ class BF_DPU_Update(object):
 
     # return True:  task completed successfully
     # return False: task cancelled for skip_same_version
-    def _wait_task(self, task_handle, max_second=15*60, check_step=10):
+    def _wait_task(self, task_handle, max_second=15*60, check_step=10, err_handler=None):
         # Check the task status within a loop
         for i in range(1, max_second//check_step + 1):
             task_state = self._get_task_status(task_handle)
@@ -603,14 +687,14 @@ class BF_DPU_Update(object):
         elif task_state['state'] == 'Running':
             raise Err_Exception(Err_Num.TASK_TIMEOUT, "The task {} is timeout".format(task_handle))
         else:
+            if err_handler is not None:
+                err_handler(task_state)
+
             if 'Component image is identical' in task_state['message']:
                 return False
             elif 'Wait for background copy operation' in task_state['message']:
                 raise Err_Exception(Err_Num.BMC_BACKGROUND_BUSY, 'Please try to update the firmware later')
-            elif "Please provide server's public key using PublicKeyExchange" in task_state['message']:
-                raise Err_Exception(Err_Num.PUBLIC_KEY_NOT_EXCHANGED)
-            else:
-                raise Err_Exception(Err_Num.TASK_FAILED, task_state['message'])
+            raise Err_Exception(Err_Num.TASK_FAILED, task_state['message'])
         return True
 
 
@@ -778,7 +862,7 @@ class BF_DPU_Update(object):
             'Content-Type' : 'application/json'
         }
         msg = {
-          "RemoteServerIP"        : "10.237.121.60",
+          "RemoteServerIP"        : self._get_local_ip(),
           "RemoteServerKeyString" : local_key,
         }
         response = self._http_post(url, data=json.dumps(msg), headers=headers)
@@ -872,7 +956,14 @@ class BF_DPU_Update(object):
             raise Err_Exception(Err_Num.FAILED_TO_ENABLE_BMC_RSHIM, 'Please make sure rshim on Host side is disabled')
 
         protocol, task_handle = self.update_bfb()
-        self._wait_task(task_handle, max_second=20*60, check_step=2)
+
+        def err_handler(task_state):
+            if protocol == "SCP" and "Please provide server's public key using PublicKeyExchange" in task_state['message']:
+                raise Err_Exception(Err_Num.PUBLIC_KEY_NOT_EXCHANGED)
+            elif protocol == "HTTP" and "Check and restart server's web service" in task_state['message']:
+                raise Err_Exception(Err_Num.HTTP_FILE_SERVER_NOT_ACCESSIBLE, "Server address: {}:{}".format(self._format_ip(self._get_local_ip()), self._local_http_server_port))
+
+        self._wait_task(task_handle, max_second=20*60, check_step=2, err_handler=err_handler)
         self._wait_for_bios_ready()
 
         # Verify new version is the same as the fw file version
