@@ -746,21 +746,28 @@ class BF_DPU_Update(object):
 
 
     def get_local_user_ssh_pub_key(self):
-        file_path = os.path.expanduser("~") + '/.ssh/*.pub'
-        command   = 'cat {}'.format(file_path)
-        process   = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        command = 'ssh-keyscan {}'.format(self._get_local_ip())
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
         if process.returncode != 0:
             raise Err_Exception(Err_Num.FAILED_TO_GET_LOCAL_KEY, 'Command "{}" failed with return code {}'.format(command, process.returncode))
 
         '''
-        ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPX0TIi99it4LIChnDwYjuQei03UUTb8izM7KHwsKjd9lUCdYR3ODI8ytEzae4v1nZgyZQuU4cQ/hHF+nhGeQEk= xxx@xxx-435
+        127.0.0.1 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxvoG8lUk0CyiQ2Jk9IlTlrESlRtLzyIhQnPsXe5//YWl5nHa6oTSbkIlwk090tchoUi9nwFtTDE5Lihs1qJEc=
+        127.0.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPzhBRfJL2pZ6LNikFnlBg7iqYXh7BDbQpfg9f1R7nch
         '''
         try:
-            key_list  = out.decode().split('\n')
-            return ' '.join(key_list[0].split(' ')[0:2])
+            key_list = out.decode().split('\n')
+            ret_list = []
+            for key in key_list:
+                if key.strip() == '':
+                    continue
+                ret_list.append(' '.join(key.split(' ')[1:]))
+            if len(ret_list) == 0:
+                raise Err_Exception(Err_Num.FAILED_TO_GET_LOCAL_KEY)
+            return ret_list
         except:
-            raise Err_Exception(Err_Num.FAILED_TO_GET_LOCAL_KEY, 'There may be no ssh-key locally (for user {}). Please run ssh-keygen firstly'.format(self.get_local_user()))
+            raise Err_Exception(Err_Num.FAILED_TO_GET_LOCAL_KEY, 'There may be no ssh-key locally (for user {}). Please run ssh-keygen firstly'.format(self._get_local_user()))
 
 
     def exchange_ssh_key_with_bmc(self, local_key):
@@ -830,11 +837,11 @@ class BF_DPU_Update(object):
 
 
     def confirm_ssh_key_with_bmc(self):
-        local_key = self.get_local_user_ssh_pub_key()
-        bmc_key   = self.exchange_ssh_key_with_bmc(local_key)
-        if self.is_bmc_key_in_local_authorized_keys(bmc_key):
-            return
-        self.set_bmc_key_into_local_authorized_keys(bmc_key)
+        local_keys = self.get_local_user_ssh_pub_key()
+        for local_key in local_keys:
+            bmc_key = self.exchange_ssh_key_with_bmc(local_key)
+            if not self.is_bmc_key_in_local_authorized_keys(bmc_key):
+                self.set_bmc_key_into_local_authorized_keys(bmc_key)
 
 
     def update_bios(self):
