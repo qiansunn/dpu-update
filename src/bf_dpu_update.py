@@ -33,13 +33,14 @@ class BF_DPU_Update(object):
     }
 
 
-    def __init__(self, bmc_ip, bmc_port, username, password, fw_file_path, module, skip_same_version, debug=False, log_file=None, use_curl=True, bfb_update_protocol = None):
+    def __init__(self, bmc_ip, bmc_port, username, password, fw_file_path, module, oem_fru, skip_same_version, debug=False, log_file=None, use_curl=True, bfb_update_protocol = None):
         self.bmc_ip            = self._parse_bmc_addr(bmc_ip)
         self.bmc_port          = bmc_port
         self.username          = username
         self.password          = password
         self.fw_file_path      = fw_file_path
         self.module            = module
+        self.oem_fru           = oem_fru
         self.skip_same_version = skip_same_version
         self.debug             = debug
         self.log_file          = log_file
@@ -93,6 +94,8 @@ class BF_DPU_Update(object):
     def _http_patch(self, url, data, headers=None, timeout=(60, 60)):
         return self.http_accessor(url, 'PATCH', self.username, self.password, headers, timeout).access(data)
 
+    def _http_put(self, url, data, headers=None, timeout=(60, 60)):
+        return self.http_accessor(url, 'PUT', self.username, self.password, headers, timeout).access(data)
 
     def _upload_file(self, url, file_path, headers=None, timeout=(60, 60)):
         return self.http_accessor(url, 'POST', self.username, self.password, headers, timeout).upload_file(file_path)
@@ -991,11 +994,68 @@ class BF_DPU_Update(object):
         print()
 
 
+    def update_oem_fru(self):
+        """
+        Update the OEM FRU data with the provided key-value pairs in the format 'Section:Key=Value'
+        """
+
+        # Define the required fields for the OEM FRU data
+        required_fields = {
+            'Product:Manufacturer',
+            'Product:SerialNumber',
+            'Product:PartNumber',
+            'Product:Version',
+            'Product:Extra',
+            'Product:ManufactureDate',
+            'Product:AssetTag',
+            'Product:GUID'
+        }
+
+        oem_fru_dict = {}
+        provided_fields = set()
+        if self.debug:
+            print("OEM FRU data to be updated:", self.oem_fru)
+        # Process each item in the provided OEM FRU data
+        for item in self.oem_fru:
+            try:
+                section_key, value = item.split('=')
+                section, key = section_key.split(':')
+                combined_key = section + key
+                # Check if the value exceeds 63 characters
+                if len(value) > 63:
+                    raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Value for {} exceeds 63 characters: {}".format(section_key, value))
+                oem_fru_dict[combined_key] = value
+                provided_fields.add(section_key)
+                if self.debug:
+                    print(f"Updated FRU field: {section_key} with value: {value}")
+            except ValueError:
+                raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Invalid format for OEM FRU data: {}. Expected format 'Section:Key=Value'".format(item))
+
+        # Process each item in the provided OEM FRU data
+        missing_fields = required_fields - provided_fields
+        if missing_fields:
+            raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Missing required OEM FRU fields: {}".format(', '.join(missing_fields)))
+
+        print("OEM FRU data to be updated:", json.dumps(oem_fru_dict, indent=4))
+
+        # Construct the URL for the HTTP PUT request
+        url = self._get_url_base() + '/Systems/Bluefield/Oem/Nvidia'
+        headers = {'Content-Type': 'application/json'}
+
+        # Send the HTTP PUT request to update the OEM FRU data
+        response = self._http_put(url, data=json.dumps(oem_fru_dict), headers=headers)
+        if response.status_code != 200:
+            raise Err_Exception(Err_Num.INVALID_STATUS_CODE, "Failed to update OEM FRU data, status code: {}".format(response.status_code))
+        print("OEM FRU data updated successfully.")
+
+
     def do_update(self):
         if self.module == 'BMC' or self.module == "CEC":
             self.update_bmc_or_cec((self.module == 'BMC'))
         elif self.module == 'BIOS':
             self.update_bios()
+        elif self.module == 'FRU':
+            self.update_oem_fru()
         else:
             raise Err_Exception(Err_Num.UNSUPPORTED_MODULE, "Unsupported module: {}".format(self.module))
 
