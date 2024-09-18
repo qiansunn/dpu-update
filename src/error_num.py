@@ -39,6 +39,7 @@ class Err_Num(Enum):
     HTTP_FILE_SERVER_NOT_ACCESSIBLE       = 28
     INVALID_BMC_ADDRESS                   = 29
     CURL_COMMAND_FAILED                   = 30
+    INVALID_INPUT_PARAMETER               = 31
     OTHER_EXCEPTION                       = 127
 
 
@@ -73,6 +74,7 @@ Err_Str = {
    Err_Num.HTTP_FILE_SERVER_NOT_ACCESSIBLE : 'HTTP file server is not accessible from BMC',
    Err_Num.INVALID_BMC_ADDRESS            : 'Invalid BMC Address',
    Err_Num.CURL_COMMAND_FAILED            : 'Curl command failed',
+   Err_Num.INVALID_INPUT_PARAMETER        : 'The input parameter provided is invalid',
    Err_Num.OTHER_EXCEPTION                : 'Other Errors',
 }
 

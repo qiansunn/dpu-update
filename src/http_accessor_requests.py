@@ -34,6 +34,8 @@ class HTTP_Accessor(object):
             return self._http_post(data=data)
         elif self.method == 'PATCH':
             return self._http_patch(data=data)
+        elif self.method == 'PUT':
+            return self._http_put(data=data)
 
 
     def multi_part_push(self, multi_part_general_param):
@@ -95,6 +97,15 @@ class HTTP_Accessor(object):
     @connection_exception
     def _http_patch(self, data):
         return requests.patch(self.url,
+                              data=data,
+                              headers=self.headers,
+                              auth=(self.username, self.password),
+                              verify=False,
+                              timeout=self.timeout)
+
+    @connection_exception
+    def _http_put(self, data):
+        return requests.put(self.url,
                               data=data,
                               headers=self.headers,
                               auth=(self.username, self.password),

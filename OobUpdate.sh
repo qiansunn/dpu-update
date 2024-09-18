@@ -27,4 +27,4 @@ function check_and_set_env()
 
 check_and_set_env
 
-python3 $PY_SCRIPT $@
+python3 $PY_SCRIPT "$@"
