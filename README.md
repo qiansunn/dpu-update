@@ -20,20 +20,21 @@ OobUpdate.sh is a program for updating various component firmware of BlueField D
       -U <username>         Username of BMC
       -P <password>         Password of BMC
       -F <firmware_file>    Firmware file path (absolute/relative)
-      -T <module>           The module to be updated: BMC|CEC|BIOS
+      -T <module>           The module to be updated: BMC|CEC|BIOS|FRU
       -H <bmc_ip>           IP/Host of BMC
       -C                    Reset to factory configuration (Only used for BMC|BIOS)
       -o <output_log_file>, --output <output_log_file>
                             Output log file
       -p <bmc_port>, --port <bmc_port>
                             Port of BMC
+      -s <oem_fru>          FRU data in the format Section:Key=Value
       -v, --version         Show the version of this scripts
       --skip_same_version   Do not upgrade, if upgrade version is the same as
                             current running version
       -d, --debug           Show more debug info
 
 ## Example
-Update BMC firmware
+### Update BMC firmware
 
     # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98  -T BMC -F /opt/bf3-bmc-24.04-5_ipn.fwpkg
     Start to upload firmware
@@ -45,7 +46,7 @@ Update BMC firmware
     New BMC Firmware Version:
             BF-24.04-5
 
-Update CEC firmware
+### Update CEC firmware
 
     # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98  -T CEC -F /opt/cec1736-ecfw-00.02.0182.0000-n02-rel-debug.fwpkg
     Start to upload firmware
@@ -57,7 +58,7 @@ Update CEC firmware
     New CEC Firmware Version:
             00.02.0182.0000_n02
 
-Update BIOS firmware
+### Update BIOS firmware
 
     # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98  -T BIOS -F /opt/BlueField-4.7.0.13127_preboot-install.bfb
     Start to upload firmware
@@ -69,6 +70,70 @@ Update BIOS firmware
     New BIOS Firmware Version:
             ATF--v2.2(release):4.7.0-25-g5569834, UEFI--4.7.0-42-g13081ae
 
+### Update FRU data
+
+The following OEM fields can be modified by the user:
+
+- Product Manufacturer
+- Product Serial Number
+- Product Part Number
+- Product Version
+- Product Extra
+- Product Manufacture Date (format is "DD/MM/YYYY HH:MM:SS")
+- Product Asset Tag
+- Product GUID (Chassis Extra in ipmitool)
+
+All OEM fields must be set in the command. If a specified FRU field is left empty, the value for that field will be ignored but not overridden.
+
+To write the FRU with the relevant data, use the following command:
+
+    # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98 -T FRU -s "Product:Manufacturer=OEM" -s "Product:SerialNumber=AB12345CD6" -s "Product:PartNumber=100-1D2B3-456V-789" -s "Product:Version=1.0" -s "Product:Extra=abc" -s "Product:ManufactureDate=05/07/2021 01:00:00" -s "Product:AssetTag=1.0.0" -s "Product:GUID=AB12345CD6"
+    OEM FRU data to be updated: {
+        "ProductManufacturer": "OEM",
+        "ProductSerialNumber": "AB12345CD6",
+        "ProductPartNumber": "100-1D2B3-456V-789",
+        "ProductVersion": "1.0",
+        "ProductExtra": "abc",
+        "ProductManufactureDate": "05/07/2021 01:00:00",
+        "ProductAssetTag": "1.0.0",
+        "ProductGUID": "AB12345CD6"
+    }
+    OEM FRU data updated successfully.
+
+To assign empty values to specfic fields, use the following command:
+
+    # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98 -T FRU -s "Product:Manufacturer=OEM" -s "Product:SerialNumber=AB12345CD6" -s "Product:PartNumber=100-1D2B3-456V-789" -s "Product:Version=1.0" -s "Product:Extra=abc" -s "Product:ManufactureDate=05/07/2021 01:00:00" -s "Product:AssetTag=" -s "Product:GUID="
+    OEM FRU data to be updated: {
+        "ProductManufacturer": "OEM",
+        "ProductSerialNumber": "AB12345CD6",
+        "ProductPartNumber": "100-1D2B3-456V-789",
+        "ProductVersion": "1.0",
+        "ProductExtra": "abc",
+        "ProductManufactureDate": "05/07/2021 01:00:00",
+        "ProductAssetTag": "",
+        "ProductGUID": ""
+    }
+    OEM FRU data updated successfully.
+
+To assign empty values to all fields, use the following command:
+
+    # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98 -T FRU -s "Product:Manufacturer=" -s "Product:SerialNumber=" -s "Product:PartNumber=" -s "Product:Version=" -s "Product:Extra=" -s "Product:ManufactureDate=" -s "Product:AssetTag=" -s "Product:GUID="
+    OEM FRU data to be updated: {
+        "ProductManufacturer": "",
+        "ProductSerialNumber": "",
+        "ProductPartNumber": "",
+        "ProductVersion": "",
+        "ProductExtra": "",
+        "ProductManufactureDate": "",
+        "ProductAssetTag": "",
+        "ProductGUID": ""
+    }
+    OEM FRU data updated successfully.
+
+To ensure the FRU writing takes effect, follow these steps:
+- Send Command to BMC: Set the desired OEM data by sending a command to the BMC.
+- Reboot the DPU: This will update the SMBIOS table on the DPU, and the dmidecode output will reflect the changes.
+- Reboot the BMC: This will update the FRU information on the BMC accordingly.
 
 ## Precondition (Controller Host)
 1. Avaiable connection to DPU BMC
