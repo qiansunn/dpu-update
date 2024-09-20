@@ -141,7 +141,7 @@ To assign empty values to all fields, use the following command:
     }
     OEM FRU data updated successfully.
 
-To assign values to specific supported OEM fields, use the following command::
+To assign values to specific supported OEM fields, use the following command:
 
     # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98 -T FRU -s "Product:Manufacturer=OEM" -s "Product:SerialNumber=AB12345CD6"
     OEM FRU data to be updated: {
