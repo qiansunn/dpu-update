@@ -12,6 +12,7 @@ import socket
 import getpass
 import subprocess
 import stat
+import datetime
 from error_num import *
 
 
@@ -180,6 +181,14 @@ class BF_DPU_Update(object):
             return ip
         else:
             return '[{}]'.format(ip)
+
+
+    def _validate_fru_date_format(self, date_str):
+        try:
+            datetime.datetime.strptime(date_str, "%d/%m/%Y %H:%M:%S")
+            return True
+        except ValueError:
+            return False
 
 
     def log(self, msg, resp):
@@ -1025,6 +1034,9 @@ class BF_DPU_Update(object):
                 if len(value) > 63:
                     raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Value for {} exceeds 63 characters: {}".format(section_key, value))
                 oem_fru_dict[combined_key] = value
+                # Validate ManufactureDate format
+                if section_key == 'Product:ManufactureDate' and not self._validate_fru_date_format(value):
+                    raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Invalid date format for ManufactureDate. Expected format: DD/MM/YYYY HH:MM:SS")
                 provided_fields.add(section_key)
                 if self.debug:
                     print(f"Updated FRU field: {section_key} with value: {value}")
