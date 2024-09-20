@@ -12,7 +12,7 @@ OobUpdate.sh is a program for updating various component firmware of BlueField D
 
     OobUpdate.sh [-h] [-U <username>] [-P <password>] [-F <firmware_file>]
                  [-T <module>] [-H <bmc_ip>] [-C <clear_config>]
-                 [-o <output_log_file>] [-p <bmc_port>] [-v]
+                 [-o <output_log_file>] [-p <bmc_port>] [-s <oem_fru>] [-v]
                  [--skip_same_version] [-d]
 
     optional arguments:
@@ -83,7 +83,18 @@ The following OEM fields can be modified by the user:
 - Product Asset Tag
 - Product GUID (Chassis Extra in ipmitool)
 
-All OEM fields must be set in the command. If a specified FRU field is left empty, the value for that field will be ignored but not overridden.
+If a specified FRU field is left empty value, the value for that field will default to the original Nvidia FRU information.
+If a specified FRU field is not set, the OEM FRU data will remain unchanged.
+
+To update each FRU field, use the format "Section:Key=Value". Example:
+- Product Manufacturer (Product:Manufacturer)
+- Product Serial Number (Product:SerialNumber)
+- Product Part Number (Product:PartNumber)
+- Product Version (Product:Version)
+- Product Extra (Product:Extra)
+- Product Manufacture Date (Product:ManufactureDate)
+- Product Asset Tag (Product:AssetTag)
+- Product GUID (Product:GUID)
 
 To write the FRU with the relevant data, use the following command:
 
@@ -130,8 +141,17 @@ To assign empty values to all fields, use the following command:
     }
     OEM FRU data updated successfully.
 
+To assign values to specific supported OEM fields, use the following command::
+
+    # ./OobUpdate.sh -U root -P Nvidia20240604-- -H 10.237.121.98 -T FRU -s "Product:Manufacturer=OEM" -s "Product:SerialNumber=AB12345CD6"
+    OEM FRU data to be updated: {
+        "ProductManufacturer": "OEM",
+        "ProductSerialNumber": "AB12345CD6"
+    }
+    OEM FRU data updated successfully.
+
 To ensure the FRU writing takes effect, follow these steps:
-- Send Command to BMC: Set the desired OEM data by sending a command to the BMC.
+- Run the Script Command: Set the desired OEM data by sending the script command to the BMC.
 - Reboot the DPU: This will update the SMBIOS table on the DPU, and the dmidecode output will reflect the changes.
 - Reboot the BMC: This will update the FRU information on the BMC accordingly.
 

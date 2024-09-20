@@ -1008,20 +1008,10 @@ class BF_DPU_Update(object):
         Update the OEM FRU data with the provided key-value pairs in the format 'Section:Key=Value'
         """
 
-        # Define the required fields for the OEM FRU data
-        required_fields = {
-            'Product:Manufacturer',
-            'Product:SerialNumber',
-            'Product:PartNumber',
-            'Product:Version',
-            'Product:Extra',
-            'Product:ManufactureDate',
-            'Product:AssetTag',
-            'Product:GUID'
-        }
-
+        # Check if the user has set the parameter in self.oem_fru
+        if not self.oem_fru:
+            raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "No OEM FRU data provided. Please set the parameter for OEM FRU.")
         oem_fru_dict = {}
-        provided_fields = set()
         if self.debug:
             print("OEM FRU data to be updated:", self.oem_fru)
         # Process each item in the provided OEM FRU data
@@ -1037,16 +1027,10 @@ class BF_DPU_Update(object):
                 # Validate ManufactureDate format
                 if section_key == 'Product:ManufactureDate' and not self._validate_fru_date_format(value):
                     raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Invalid date format for ManufactureDate. Expected format: DD/MM/YYYY HH:MM:SS")
-                provided_fields.add(section_key)
                 if self.debug:
                     print(f"Updated FRU field: {section_key} with value: {value}")
             except ValueError:
                 raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Invalid format for OEM FRU data: {}. Expected format 'Section:Key=Value'".format(item))
-
-        # Process each item in the provided OEM FRU data
-        missing_fields = required_fields - provided_fields
-        if missing_fields:
-            raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Missing required OEM FRU fields: {}".format(', '.join(missing_fields)))
 
         print("OEM FRU data to be updated:", json.dumps(oem_fru_dict, indent=4))
 
