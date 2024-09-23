@@ -1025,7 +1025,7 @@ class BF_DPU_Update(object):
                     raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Value for {} exceeds 63 characters: {}".format(section_key, value))
                 oem_fru_dict[combined_key] = value
                 # Validate ManufactureDate format
-                if section_key == 'Product:ManufactureDate' and not self._validate_fru_date_format(value):
+                if section_key == 'Product:ManufactureDate' and value and not self._validate_fru_date_format(value):
                     raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Invalid date format for ManufactureDate. Expected format: DD/MM/YYYY HH:MM:SS")
                 if self.debug:
                     print(f"Updated FRU field: {section_key} with value: {value}")
