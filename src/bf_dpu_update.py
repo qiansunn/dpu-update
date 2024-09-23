@@ -1028,7 +1028,7 @@ class BF_DPU_Update(object):
                 if section_key == 'Product:ManufactureDate' and value and not self._validate_fru_date_format(value):
                     raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Invalid date format for ManufactureDate. Expected format: DD/MM/YYYY HH:MM:SS")
                 if self.debug:
-                    print(f"Updated FRU field: {section_key} with value: {value}")
+                    print("Updated FRU field: {} with value: {}".format(section_key, value))
             except ValueError:
                 raise Err_Exception(Err_Num.INVALID_INPUT_PARAMETER, "Invalid format for OEM FRU data: {}. Expected format 'Section:Key=Value'".format(item))
 
