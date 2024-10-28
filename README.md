@@ -150,10 +150,10 @@ To assign values to specific supported OEM fields, use the following command:
     }
     OEM FRU data updated successfully.
 
-To ensure the FRU writing takes effect, follow these steps:
-- Run the Script Command: Set the desired OEM data by sending the script command to the BMC.
-- Reboot the DPU: This will update the SMBIOS table on the DPU, and the dmidecode output will reflect the changes.
-- Reboot the BMC: This will update the FRU information on the BMC accordingly.
+To ensure the FRU writing takes effect, follow these steps and in the order listed below:
+1) Run the Script Command: Set the desired OEM data by sending the script command to the BMC.
+2) Reboot the DPU: This will update the SMBIOS table on the DPU, and the dmidecode output will reflect the changes.
+3) Reboot the BMC: This will update the FRU information on the BMC accordingly.
 
 ## Precondition (Controller Host)
 1. Avaiable connection to DPU BMC
