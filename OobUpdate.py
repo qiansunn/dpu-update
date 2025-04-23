@@ -65,6 +65,7 @@ def create_cfg_file(username, password, ssh_username, ssh_password, config_path,
             cfg_file.write('BMC_SSH_USER="{}"\n'.format(ssh_username))
             cfg_file.write('BMC_SSH_PASSWORD="{}"\n'.format(ssh_password))
             cfg_file.write('BMC_REBOOT="yes"\n')
+            cfg_file.write('CEC_REBOOT="yes"\n')
             if lfwp:
                 cfg_file.write('UPDATE_DPU_OS="no"\n')
                 cfg_file.write('UPDATE_ATF_UEFI="no"\n')
