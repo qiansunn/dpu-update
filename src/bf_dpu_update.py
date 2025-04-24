@@ -1177,11 +1177,11 @@ class BF_DPU_Update(object):
         self._start_and_wait_simple_update_task()
         self._wait_for_dpu_ready()
 
-        time.sleep(60) # Wait for some time before getting all fw versions
-
         if self.reset_bios:
             self.send_reset_bios()
+            self._wait_for_dpu_ready()
 
+        time.sleep(60) # Wait for some time before getting all fw versions
         new_vers = self.get_all_versions()
         self.show_old_new_versions(cur_vers, new_vers, ['BMC', 'CEC', 'ATF', 'UEFI', 'NIC'])
         return True
