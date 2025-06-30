@@ -878,6 +878,54 @@ class BF_DPU_Update(object):
             return False
 
 
+    def _compare_bmc_version(self, version1, version2):
+        """
+        Compare two BMC versions in format XX.XX-XX
+        Returns: 1 if version1 > version2, 0 if equal, -1 if version1 < version2
+        """
+        try:
+            # Parse version1 (e.g., "24.10-29")
+            v1_parts = version1.split('-')
+            v1_major_minor = v1_parts[0].split('.')
+            v1_major = int(v1_major_minor[0])
+            v1_minor = int(v1_major_minor[1])
+            v1_patch = int(v1_parts[1])
+
+            # Parse version2 (e.g., "24.10-29")
+            v2_parts = version2.split('-')
+            v2_major_minor = v2_parts[0].split('.')
+            v2_major = int(v2_major_minor[0])
+            v2_minor = int(v2_major_minor[1])
+            v2_patch = int(v2_parts[1])
+
+            # Compare versions
+            if v1_major != v2_major:
+                return 1 if v1_major > v2_major else -1
+            if v1_minor != v2_minor:
+                return 1 if v1_minor > v2_minor else -1
+            if v1_patch != v2_patch:
+                return 1 if v1_patch > v2_patch else -1
+            return 0
+        except (ValueError, IndexError):
+            # If version parsing fails, return 0 (equal) to be safe
+            return 0
+
+
+    def clear_sel(self):
+        """
+        Clear System Event Log (SEL) using Redfish
+        """
+        print("Clearing System Event Log (SEL)")
+        url = self._get_url_base() + '/Systems/Bluefield/LogServices/SEL/Actions/LogService.ClearLog'
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        response = self._http_post(url, data=json.dumps({}), headers=headers)
+        self.log('Clear SEL', response)
+        self._handle_status_code(response, [200, 204])
+        print("SEL cleared successfully")
+
+
     def update_bmc_or_cec(self, is_bmc):
         self.validate_arg_for_update()
         self.wait_update_service_ready()
@@ -908,6 +956,25 @@ class BF_DPU_Update(object):
         new_ver = self.get_ver('BMC') if is_bmc else self.get_ver('CEC')
         print('OLD {} Firmware Version: \n\t{}'.format(('BMC' if is_bmc else 'CEC'), old_ver))
         print('New {} Firmware Version: \n\t{}'.format(('BMC' if is_bmc else 'CEC'), new_ver))
+
+        # Clear SEL if crossing the 24.10-29 threshold in either direction
+        if is_bmc and old_ver and new_ver:
+            # Extract versions without "BF-" prefix if present
+            old_version_to_compare = old_ver.replace('BF-', '') if old_ver.startswith('BF-') else old_ver
+            new_version_to_compare = new_ver.replace('BF-', '') if new_ver.startswith('BF-') else new_ver
+
+            old_vs_threshold = self._compare_bmc_version(old_version_to_compare, '24.10-29')
+            new_vs_threshold = self._compare_bmc_version(new_version_to_compare, '24.10-29')
+
+            # Case 1: old < 24.10-29, new >= 24.10-29 (upgrade crossing threshold)
+            # Case 2: old >= 24.10-29, new < 24.10-29 (downgrade crossing threshold)
+            if (old_vs_threshold < 0 and new_vs_threshold >= 0) or (old_vs_threshold >= 0 and new_vs_threshold < 0):
+                try:
+                    self.clear_sel()
+                except Exception as e:
+                    print("Warning: Failed to clear SEL: {}".format(e))
+                    if self.debug:
+                        print("SEL clear error details: {}".format(e))
 
 
     def is_rshim_enabled_on_bmc(self):
@@ -1219,6 +1286,28 @@ class BF_DPU_Update(object):
 
         new_vers = self.get_all_versions()
         self.show_old_new_versions(cur_vers, new_vers, ['BMC', 'CEC', 'ATF', 'UEFI', 'NIC'])
+
+        # Clear SEL if crossing the 24.10-29 threshold in either direction after bundle update
+        old_bmc_ver = cur_vers.get('BMC', '')
+        new_bmc_ver = new_vers.get('BMC', '')
+        if old_bmc_ver and new_bmc_ver and new_bmc_ver != old_bmc_ver:
+            # Extract versions without "BF-" prefix if present
+            old_version_to_compare = old_bmc_ver.replace('BF-', '') if old_bmc_ver.startswith('BF-') else old_bmc_ver
+            new_version_to_compare = new_bmc_ver.replace('BF-', '') if new_bmc_ver.startswith('BF-') else new_bmc_ver
+
+            old_vs_threshold = self._compare_bmc_version(old_version_to_compare, '24.10-29')
+            new_vs_threshold = self._compare_bmc_version(new_version_to_compare, '24.10-29')
+
+            # Case 1: old < 24.10-29, new >= 24.10-29 (upgrade crossing threshold)
+            # Case 2: old >= 24.10-29, new < 24.10-29 (downgrade crossing threshold)
+            if (old_vs_threshold < 0 and new_vs_threshold >= 0) or (old_vs_threshold >= 0 and new_vs_threshold < 0):
+                try:
+                    self.clear_sel()
+                except Exception as e:
+                    print("Warning: Failed to clear SEL: {}".format(e))
+                    if self.debug:
+                        print("SEL clear error details: {}".format(e))
+
         return True
 
 
